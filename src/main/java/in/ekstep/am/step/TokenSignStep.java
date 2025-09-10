@@ -113,10 +113,8 @@ public class TokenSignStep implements TokenStep {
     }
 
     currentTime = System.currentTimeMillis() / 1000;
-    BigDecimal iat = new BigDecimal(bodyData.get("iat").toString());
-    BigDecimal exp = new BigDecimal(bodyData.get("exp").toString());
-    tokenWasIssuedAt = iat.longValueExact();
-    tokenExpiry = exp.longValueExact();
+    tokenWasIssuedAt = extractLongValue(bodyData.get("iat"));
+    tokenExpiry = extractLongValue(bodyData.get("exp"));
 
     if(bodyData.get("typ").equals("Offline")) {
       offlineTokenValidity = Long.parseLong(keyManager.getValueFromKeyMetaData("refresh.token.offline.validity"));
@@ -268,6 +266,39 @@ public class TokenSignStep implements TokenStep {
       return fedUserId.substring(fedUserId.lastIndexOf(":")+1);
     }
     return fedUserId;
+  }
+
+  private long extractLongValue(Object value) {
+    if (value == null) {
+      throw new IllegalArgumentException("Timestamp value cannot be null");
+    }
+    
+    // If it's already a Number, extract the long value directly
+    if (value instanceof Number) {
+      return ((Number) value).longValue();
+    }
+    
+    // If it's a String, handle both regular and scientific notation
+    if (value instanceof String) {
+      String strValue = (String) value;
+      try {
+        // Try parsing as BigDecimal to handle scientific notation
+        BigDecimal decimal = new BigDecimal(strValue);
+        return decimal.longValueExact();
+      } catch (NumberFormatException e) {
+        log.error("Failed to parse timestamp value: " + strValue, e);
+        throw new IllegalArgumentException("Invalid timestamp format: " + strValue, e);
+      }
+    }
+    
+    // Fallback: try converting toString() and then parsing
+    try {
+      BigDecimal decimal = new BigDecimal(value.toString());
+      return decimal.longValueExact();
+    } catch (Exception e) {
+      log.error("Failed to extract long value from: " + value + " (type: " + value.getClass().getName() + ")", e);
+      throw new IllegalArgumentException("Cannot convert to long: " + value, e);
+    }
   }
 
   @Override
